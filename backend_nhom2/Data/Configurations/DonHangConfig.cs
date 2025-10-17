@@ -17,11 +17,6 @@ public class DonHangConfig : IEntityTypeConfiguration<DonHang>
         builder.Property(x => x.TONGTIEN).HasColumnType("decimal(18,2)").IsRequired();
 
 
-        builder.HasOne(d => d.LoaiHang)
-        .WithMany(l => l.DonHangs)
-        .HasForeignKey(d => d.MALOAI)
-        .OnDelete(DeleteBehavior.Restrict);
-
 
         builder.HasMany(d => d.CtDonHangs)
         .WithOne(cd => cd.DonHang!)
