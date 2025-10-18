@@ -16,9 +16,14 @@ public class CtDonHangConfig : IEntityTypeConfiguration<CtDonHang>
         builder.Property(x => x.SL).IsRequired();
 
 
+        builder.HasOne(x => x.DonHang)
+            .WithMany(d => d.CtDonHangs)
+            .HasForeignKey(x => x.MADON)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasOne(x => x.HangHoa)
-        .WithMany(h => h.CtDonHangs)
-        .HasForeignKey(x => x.MAHH)
-        .OnDelete(DeleteBehavior.Restrict);
+            .WithMany(h => h.CtDonHangs)
+            .HasForeignKey(x => x.MAHH)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
