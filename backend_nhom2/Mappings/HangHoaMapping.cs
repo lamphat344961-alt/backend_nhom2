@@ -1,7 +1,6 @@
-﻿// path: backend_nhom2/Mappings/HangHoaMapping.cs
-using backend_nhom2.Domain;
-using backend_nhom2.Dtos.HangHoa;
+﻿using backend_nhom2.Domain;
 using backend_nhom2.DTOs.HangHoa;
+
 
 namespace backend_nhom2.Mappings;
 

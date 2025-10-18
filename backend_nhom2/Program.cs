@@ -1,34 +1,35 @@
 using backend_nhom2.Data;
+using backend_nhom2.Domain;
 using backend_nhom2.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 
+// Cấu hình CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: MyAllowSpecificOrigins,
                       policy =>
                       {
-                          policy.WithOrigins("*")
+                          policy.WithOrigins("*") // Cho phép mọi nguồn gốc, có thể thay đổi trong môi trường production
                                 .AllowAnyHeader()
                                 .AllowAnyMethod();
                       });
 });
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+// Cấu hình DbContext, thống nhất sử dụng AppDbContext
+builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
+// Cấu hình xác thực JWT (Authentication)
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         var jwtKey = builder.Configuration["Jwt:Key"];
@@ -49,19 +50,24 @@ builder.Services.AddAuthentication(options =>
         };
     });
 
+// Cấu hình phân quyền (Authorization)
 builder.Services.AddAuthorization();
 
-builder.Services.AddControllers();
+// Thêm Controllers và cấu hình xử lý tham chiếu vòng tròn (quan trọng!)
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
+
 builder.Services.AddEndpointsApiExplorer();
 
+// Lấy cấu hình Swagger hoàn chỉnh nhất, cho phép nhập JWT token
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "My API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Smart Inventory API", Version = "v1" });
 
     // Thêm định nghĩa bảo mật cho JWT
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Description = "Nhập JWT token theo định dạng: Bearer {token}",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
@@ -86,13 +92,14 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+// Tự động áp dụng migration và seed dữ liệu khi ứng dụng khởi động
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
-        var context = services.GetRequiredService<ApplicationDbContext>();
-        context.Database.Migrate();
+        var context = services.GetRequiredService<AppDbContext>();
+        context.Database.Migrate(); // Tự động áp dụng migration
 
         if (!context.Roles.Any())
         {
@@ -107,10 +114,11 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "Đã xảy ra lỗi trong quá trình seed database.");
+        logger.LogError(ex, "Đã xảy ra lỗi trong quá trình khởi tạo và seed database.");
     }
 }
 
+// Cấu hình middleware pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -119,7 +127,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors(MyAllowSpecificOrigins);
+
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
+
 app.Run();

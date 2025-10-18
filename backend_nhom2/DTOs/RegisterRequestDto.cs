@@ -1,5 +1,4 @@
-﻿// Path: DTOs/RegisterRequestDto.cs
-namespace backend_nhom2.DTOs
+﻿namespace backend_nhom2.DTOs
 {
     public class RegisterRequestDto
     {

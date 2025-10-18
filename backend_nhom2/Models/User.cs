@@ -1,4 +1,6 @@
-﻿namespace backend_nhom2.Models
+﻿using backend_nhom2.Domain;
+
+namespace backend_nhom2.Models
 {
     public class User
     {
@@ -8,9 +10,11 @@
         public string FullName { get; set; } = null!;
         public string? PhoneNumber { get; set; }
         public string? CCCD { get; set; }
-
         public DateTime CreatedAt { get; set; }
         public int RoleId { get; set; }
         public Role Role { get; set; } = null!;
+
+        // Nếu user này là tài xế, đây là xe họ được gán
+        public Xe? Xe { get; set; }
     }
 }

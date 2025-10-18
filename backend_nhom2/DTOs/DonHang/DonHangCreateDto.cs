@@ -1,4 +1,4 @@
-﻿namespace backend_nhom2.Dtos.DonHang;
+﻿namespace backend_nhom2.DTOs.DonHang;
 
 public record DonHangCreateDto(
     string MADON,

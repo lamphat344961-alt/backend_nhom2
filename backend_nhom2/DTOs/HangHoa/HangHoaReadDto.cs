@@ -1,5 +1,4 @@
-﻿// path: backend_nhom2/Dtos/HangHoa/HangHoaReadDto.cs
-namespace backend_nhom2.Dtos.HangHoa;
+﻿namespace backend_nhom2.DTOs.HangHoa;
 
 public record HangHoaReadDto(
     string MAHH,

@@ -1,4 +1,4 @@
-﻿namespace backend_nhom2.Dtos.CtDonHang;
+﻿namespace backend_nhom2.DTOs.CtDonHang;
 
 public record CtDonHangReadDto(
     string MADON,

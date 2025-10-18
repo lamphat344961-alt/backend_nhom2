@@ -21,7 +21,5 @@ namespace backend_nhom2.Controllers
             // Logic để thêm xe mới
             return Ok("Đã thêm xe mới thành công! (Chỉ Owner mới làm được)");
         }
-
-        // Thêm các endpoint khác 
     }
 }

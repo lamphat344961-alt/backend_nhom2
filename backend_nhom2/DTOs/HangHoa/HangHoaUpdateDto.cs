@@ -1,5 +1,4 @@
-﻿
-namespace backend_nhom2.Dtos.HangHoa;
+﻿namespace backend_nhom2.DTOs.HangHoa;
 
 public record HangHoaUpdateDto(
     string? TENHH,

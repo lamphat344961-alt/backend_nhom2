@@ -1,105 +1,125 @@
 ﻿using backend_nhom2.Data;
 using backend_nhom2.Domain;
-using backend_nhom2.Dtos.CtDonHang;
+using backend_nhom2.DTOs.CtDonHang;
 using backend_nhom2.Mappings;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
-namespace backend_nhom2.Controllers;
-
-[ApiController]
-[Route("api/[controller]")]
-public class CtDonHangController : ControllerBase
+namespace backend_nhom2.Controllers
 {
-    private readonly AppDbContext _db;
-    public CtDonHangController(AppDbContext db) => _db = db;
-
-    // GET: api/CtDonHang?madon=...&mahh=...
-    [HttpGet]
-    public async Task<ActionResult<IEnumerable<CtDonHangReadDto>>> GetAll([FromQuery] string? madon, [FromQuery] string? mahh)
+    [ApiController]
+    [Route("api/[controller]")]
+    public class CtDonHangController : ControllerBase
     {
-        var q = _db.CtDonHangs.AsNoTracking().AsQueryable();
-        if (!string.IsNullOrWhiteSpace(madon)) q = q.Where(x => x.MADON == madon);
-        if (!string.IsNullOrWhiteSpace(mahh)) q = q.Where(x => x.MAHH == mahh);
-        var data = await q.Select(x => x.ToReadDto()).ToListAsync();
-        return Ok(data);
-    }
+        private readonly AppDbContext _db;
+        public CtDonHangController(AppDbContext db) => _db = db;
 
-    // GET: api/CtDonHang/{madon}/{mahh}
-    [HttpGet("{madon}/{mahh}")]
-    public async Task<ActionResult<CtDonHangReadDto>> GetById(string madon, string mahh)
-    {
-        var e = await _db.CtDonHangs.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.MADON == madon && x.MAHH == mahh);
-        return e is null ? NotFound() : Ok(e.ToReadDto());
-    }
-
-    // POST: api/CtDonHang
-    [HttpPost]
-    public async Task<ActionResult<CtDonHangReadDto>> Create([FromBody] CtDonHangCreateDto dto)
-    {
-        // Validate cơ bản
-        if (dto.SL < 0) return BadRequest("SL không được âm.");
-        if (dto.DONGIA < 0) return BadRequest("DONGIA không được âm.");
-
-        // Kiểm tra khóa chính kép trùng
-        var exists = await _db.CtDonHangs.AnyAsync(x => x.MADON == dto.MADON && x.MAHH == dto.MAHH);
-        if (exists) return Conflict($"Chi tiết đơn đã tồn tại: ({dto.MADON}, {dto.MAHH}).");
-
-        // Kiểm tra FK
-        var donExists = await _db.DonHangs.AnyAsync(d => d.MADON == dto.MADON);
-        if (!donExists) return BadRequest($"MADON '{dto.MADON}' không tồn tại.");
-
-        var hhExists = await _db.HangHoas.AnyAsync(h => h.MAHH == dto.MAHH);
-        if (!hhExists) return BadRequest($"MAHH '{dto.MAHH}' không tồn tại.");
-
-        var entity = dto.ToEntity();
-        _db.CtDonHangs.Add(entity);
-        await _db.SaveChangesAsync();
-
-        var read = entity.ToReadDto();
-        return CreatedAtAction(nameof(GetById), new { madon = entity.MADON, mahh = entity.MAHH }, read);
-    }
-
-    // PUT: api/CtDonHang/{madon}/{mahh}
-    [HttpPut("{madon}/{mahh}")]
-    public async Task<IActionResult> Update(string madon, string mahh, [FromBody] CtDonHangUpdateDto dto)
-    {
-        if (dto.SL < 0) return BadRequest("SL không được âm.");
-        if (dto.DONGIA < 0) return BadRequest("DONGIA không được âm.");
-
-        var entity = await _db.CtDonHangs.FirstOrDefaultAsync(x => x.MADON == madon && x.MAHH == mahh);
-        if (entity is null) return NotFound();
-
-        entity.Apply(dto);
-
-        try
+        // GET: api/CtDonHang?madon=...&mahh=...
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<CtDonHangReadDto>>> GetAll([FromQuery] string? madon, [FromQuery] string? mahh)
         {
+            var query = _db.CtDonHangs.AsNoTracking();
+            if (!string.IsNullOrWhiteSpace(madon))
+            {
+                query = query.Where(x => x.MADON == madon);
+            }
+            if (!string.IsNullOrWhiteSpace(mahh))
+            {
+                query = query.Where(x => x.MAHH == mahh);
+            }
+            var data = await query.Select(x => x.ToReadDto()).ToListAsync();
+            return Ok(data);
+        }
+
+        // GET: api/CtDonHang/{madon}/{mahh}
+        [HttpGet("{madon}/{mahh}")]
+        public async Task<ActionResult<CtDonHangReadDto>> GetById(string madon, string mahh)
+        {
+            var entity = await _db.CtDonHangs.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.MADON == madon && x.MAHH == mahh);
+            return entity is null ? NotFound() : Ok(entity.ToReadDto());
+        }
+
+        // POST: api/CtDonHang
+        [HttpPost]
+        public async Task<ActionResult<CtDonHangReadDto>> Create([FromBody] CtDonHangCreateDto dto)
+        {
+            if (dto.SL <= 0) return BadRequest("Số lượng (SL) phải lớn hơn 0.");
+            if (dto.DONGIA < 0) return BadRequest("Đơn giá (DONGIA) không được âm.");
+
+            var exists = await _db.CtDonHangs.AnyAsync(x => x.MADON == dto.MADON && x.MAHH == dto.MAHH);
+            if (exists) return Conflict($"Chi tiết đơn hàng cho mặt hàng '{dto.MAHH}' đã tồn tại trong đơn '{dto.MADON}'.");
+
+            var donExists = await _db.DonHangs.AnyAsync(d => d.MADON == dto.MADON);
+            if (!donExists) return BadRequest($"Đơn hàng với mã '{dto.MADON}' không tồn tại.");
+
+            var hhExists = await _db.HangHoas.AnyAsync(h => h.MAHH == dto.MAHH);
+            if (!hhExists) return BadRequest($"Hàng hóa với mã '{dto.MAHH}' không tồn tại.");
+
+            var entity = dto.ToEntity();
+            _db.CtDonHangs.Add(entity);
             await _db.SaveChangesAsync();
+
+            // *** TÍCH HỢP LOGIC: Cập nhật tổng tiền của đơn hàng ***
+            await UpdateDonHangTongTienAsync(entity.MADON);
+
+            var readDto = entity.ToReadDto();
+            return CreatedAtAction(nameof(GetById), new { madon = entity.MADON, mahh = entity.MAHH }, readDto);
+        }
+
+        // PUT: api/CtDonHang/{madon}/{mahh}
+        [HttpPut("{madon}/{mahh}")]
+        public async Task<IActionResult> Update(string madon, string mahh, [FromBody] CtDonHangUpdateDto dto)
+        {
+            if (dto.SL <= 0) return BadRequest("Số lượng (SL) phải lớn hơn 0.");
+            if (dto.DONGIA < 0) return BadRequest("Đơn giá (DONGIA) không được âm.");
+
+            var entity = await _db.CtDonHangs.FirstOrDefaultAsync(x => x.MADON == madon && x.MAHH == mahh);
+            if (entity is null) return NotFound();
+
+            entity.Apply(dto);
+            await _db.SaveChangesAsync();
+
+            // *** TÍCH HỢP LOGIC: Cập nhật lại tổng tiền của đơn hàng sau khi sửa ***
+            await UpdateDonHangTongTienAsync(madon);
+
             return NoContent();
         }
-        catch (DbUpdateException e)
-        {
-            return Problem($"Lỗi cập nhật dữ liệu: {e.InnerException?.Message ?? e.Message}");
-        }
-    }
 
-    // DELETE: api/CtDonHang/{madon}/{mahh}
-    [HttpDelete("{madon}/{mahh}")]
-    public async Task<IActionResult> Delete(string madon, string mahh)
-    {
-        var entity = await _db.CtDonHangs.FirstOrDefaultAsync(x => x.MADON == madon && x.MAHH == mahh);
-        if (entity is null) return NotFound();
-
-        _db.CtDonHangs.Remove(entity);
-        try
+        // DELETE: api/CtDonHang/{madon}/{mahh}
+        [HttpDelete("{madon}/{mahh}")]
+        public async Task<IActionResult> Delete(string madon, string mahh)
         {
+            var entity = await _db.CtDonHangs.FirstOrDefaultAsync(x => x.MADON == madon && x.MAHH == mahh);
+            if (entity is null) return NotFound();
+
+            _db.CtDonHangs.Remove(entity);
             await _db.SaveChangesAsync();
+
+            // *** TÍCH HỢP LOGIC: Cập nhật lại tổng tiền của đơn hàng sau khi xóa ***
+            await UpdateDonHangTongTienAsync(madon);
+
             return NoContent();
         }
-        catch (DbUpdateException e)
+
+        // --- PHƯƠNG THỨC HELPER ĐỂ CẬP NHẬT TỔNG TIỀN ---
+        private async Task UpdateDonHangTongTienAsync(string madon)
         {
-            return Conflict($"Không thể xóa do ràng buộc dữ liệu: {e.InnerException?.Message ?? e.Message}");
+            var donHang = await _db.DonHangs.FindAsync(madon);
+            if (donHang != null)
+            {
+                // Tính toán lại tổng tiền bằng cách SUM tất cả các chi tiết đơn hàng liên quan
+                donHang.TONGTIEN = await _db.CtDonHangs
+                    .Where(ct => ct.MADON == madon)
+                    .SumAsync(ct => ct.SL * ct.DONGIA);
+
+                // Lưu thay đổi tổng tiền vào CSDL
+                _db.DonHangs.Update(donHang);
+                await _db.SaveChangesAsync();
+            }
         }
     }
 }

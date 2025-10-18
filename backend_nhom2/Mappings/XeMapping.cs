@@ -1,5 +1,5 @@
 ﻿using backend_nhom2.Domain;
-using backend_nhom2.Dtos.Xe;
+using backend_nhom2.DTOs.Xe;
 
 namespace backend_nhom2.Mappings;
 

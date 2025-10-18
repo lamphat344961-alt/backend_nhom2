@@ -1,5 +1,5 @@
 ﻿using backend_nhom2.Domain;
-using backend_nhom2.Dtos.CtDonHang;
+using backend_nhom2.DTOs.CtDonHang;
 
 namespace backend_nhom2.Mappings;
 

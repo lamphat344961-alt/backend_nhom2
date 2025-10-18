@@ -24,7 +24,48 @@ namespace backend_nhom2.Controllers
             _configuration = configuration;
         }
 
-        // POST: api/auth/register
+        // Chức năng này chỉ nên được thực hiện một lần để khởi tạo hệ thống.
+        [HttpPost("register-first-owner")]
+        public async Task<IActionResult> RegisterFirstOwner(RegisterRequestDto request)
+        {
+            var ownerRole = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == "Owner");
+            if (ownerRole == null)
+            {
+                return StatusCode(500, "Vai trò 'Owner' chưa tồn tại trong CSDL.");
+            }
+
+            bool ownerExists = await _context.Users.AnyAsync(u => u.RoleId == ownerRole.RoleId);
+            if (ownerExists)
+            {
+                return BadRequest("Hệ thống đã có Owner. Không thể tạo thêm bằng chức năng này.");
+            }
+
+            if (await _context.Users.AnyAsync(u => u.Username == request.Username))
+            {
+                return BadRequest("Username đã tồn tại.");
+            }
+
+            // Gọi đầy đủ BCrypt.Net.BCrypt
+            var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+
+            var user = new User
+            {
+                Username = request.Username,
+                PasswordHash = passwordHash,
+                FullName = request.FullName,
+                PhoneNumber = request.PhoneNumber,
+                CCCD = request.CCCD,
+                RoleId = ownerRole.RoleId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Tạo tài khoản Owner đầu tiên thành công!" });
+        }
+
+        // Dùng để Owner tạo các tài khoản khác như Driver.
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterRequestDto request)
         {
@@ -36,9 +77,10 @@ namespace backend_nhom2.Controllers
             var role = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == request.Role.Trim());
             if (role == null)
             {
-                return BadRequest("Vai trò không hợp lệ. Chỉ chấp nhận 'Owner' hoặc 'Driver'.");
+                return BadRequest("Vai trò không hợp lệ. Vui lòng cung cấp một vai trò hợp lệ.");
             }
-            // Mã hóa mật khẩu bằng BCrypt
+
+            // Gọi đầy đủ BCrypt.Net.BCrypt
             var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
             var user = new User
@@ -49,7 +91,7 @@ namespace backend_nhom2.Controllers
                 PhoneNumber = request.PhoneNumber,
                 CCCD = request.CCCD,
                 RoleId = role.RoleId,
-                CreatedAt = DateTime.Now
+                CreatedAt = DateTime.UtcNow
             };
 
             _context.Users.Add(user);
@@ -58,21 +100,21 @@ namespace backend_nhom2.Controllers
             return Ok(new { message = "Đăng ký người dùng thành công!" });
         }
 
-        // POST: api/auth/login
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequestDto request)
         {
             var user = await _context.Users
-                .Include(u => u.Role) // Nạp thông tin Role của user
+                .Include(u => u.Role)
                 .FirstOrDefaultAsync(u => u.Username == request.Username);
 
-            // Kiểm tra user và mật khẩu
+            // Gọi đầy đủ BCrypt.Net.BCrypt
             if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             {
                 return Unauthorized("Tên đăng nhập hoặc mật khẩu không đúng.");
             }
-            // Nếu đúng, tạo token
-            var token = GenerateJwtToken(user);
+
+            // Thêm toán tử '!' để tắt cảnh báo null reference
+            var token = GenerateJwtToken(user!);
 
             return Ok(new LoginResponseDto
             {
@@ -87,13 +129,12 @@ namespace backend_nhom2.Controllers
             var jwtKey = _configuration["Jwt:Key"];
             if (string.IsNullOrEmpty(jwtKey))
             {
-                throw new InvalidOperationException("JWT Key is not configured in appsettings.json");
+                throw new InvalidOperationException("JWT Key chưa được cấu hình trong appsettings.json");
             }
 
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-            // Thông tin chứa trong token (payload)
             var claims = new[]
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Username),
@@ -106,7 +147,7 @@ namespace backend_nhom2.Controllers
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.Now.AddDays(1), // Token hết hạn sau 1 ngày
+                expires: DateTime.Now.AddDays(1),
                 signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler().WriteToken(token);

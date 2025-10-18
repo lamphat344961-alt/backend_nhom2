@@ -1,4 +1,4 @@
-﻿namespace backend_nhom2.Dtos.Xe;
+﻿namespace backend_nhom2.DTOs.Xe;
 
 public record XeUpdateDto(
     string? TT_XE,
