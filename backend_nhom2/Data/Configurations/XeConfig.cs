@@ -15,7 +15,7 @@ namespace backend_nhom2.Data.Configurations
             builder.Property(x => x.TENXE).HasMaxLength(100);
             builder.Property(x => x.TT_XE).HasMaxLength(50);
 
-            builder.HasMany(x => x.CtDiemGiaos)
+            builder.HasMany(x => x.DonHangs)
             .WithOne(cd => cd.Xe!)
             .HasForeignKey(cd => cd.BS_XE)
             .OnDelete(DeleteBehavior.Restrict);

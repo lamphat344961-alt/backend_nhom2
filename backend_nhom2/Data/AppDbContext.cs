@@ -54,7 +54,62 @@ namespace backend_nhom2.Data
                 e.HasIndex(x => new { x.RoutePlanId, x.Order }).IsUnique();
             });
 
-            
+            modelBuilder.Entity<CtDiemGiao>(e =>
+            {
+                e.ToTable("CT_DIEMGIAO");
+                // PK phức hợp: MADON + D_DD
+                e.HasKey(x => new { x.MADON, x.IdDD });
+
+                e.Property(x => x.MADON).HasMaxLength(20);
+                e.Property(x => x.IdDD).HasColumnName("D_DD").HasMaxLength(20);
+                e.Property(x => x.TRANGTHAI).HasMaxLength(30).IsRequired();
+                e.Property(x => x.ServiceMinutes).HasDefaultValue(10);
+
+                e.HasOne(x => x.DonHang)
+                    .WithMany(d => d.CtDiemGiaos)
+                    .HasForeignKey(x => x.MADON)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasOne(x => x.DiemGiao)
+                    .WithMany(d => d.CtDiemGiaos)
+                    .HasForeignKey(x => x.IdDD)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<Xe>(e =>
+            {
+                e.ToTable("XE");
+                e.HasKey(x => x.BS_XE);
+                e.Property(x => x.BS_XE).HasMaxLength(20);
+                e.Property(x => x.TENXE).HasMaxLength(100);
+                e.Property(x => x.TT_XE).HasMaxLength(50);
+            });
+            // ===== DONHANG (mỗi đơn gán 1 xe) =====
+            modelBuilder.Entity<DonHang>(e =>
+            {
+                e.ToTable("DONHANG");
+                e.HasKey(x => x.MADON);
+                e.Property(x => x.MADON).HasMaxLength(20);
+
+                e.Property(x => x.MALOAI).HasMaxLength(20);
+                e.Property(x => x.TONGTIEN).HasColumnType("decimal(18,2)");
+
+                // FK đến Xe (nullable), OnDelete SetNull
+                e.Property(x => x.BS_XE).HasMaxLength(20).IsRequired(false);
+                e.HasOne(x => x.Xe)
+                    .WithMany(v => v.DonHangs)
+                    .HasForeignKey(x => x.BS_XE)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+            // ===== DIEMGIAO =====
+            modelBuilder.Entity<DiemGiao>(e =>
+            {
+                e.ToTable("DIEMGIAO");
+                e.HasKey(x => x.IdDD);
+                e.Property(x => x.IdDD).HasColumnName("D_DD").HasMaxLength(20);
+
+                e.Property(x => x.TEN).HasMaxLength(200);
+                e.Property(x => x.VITRI).HasMaxLength(300);
+            });
         }
     }
 }

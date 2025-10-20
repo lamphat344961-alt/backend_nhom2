@@ -85,8 +85,7 @@ namespace backend_nhom2.Controllers
             var xe = await _db.Xes.FindAsync(bsxe);
             if (xe is null) return NotFound();
 
-  
-            xe.TENXE = dto.TenXe; // Sửa lại tên thuộc tính từ DTO cho khớp
+            xe.TENXE = dto.TenXe; // thuộc tính theo DTO của bạn
             xe.TT_XE = dto.TT_XE;
 
             await _db.SaveChangesAsync();
@@ -120,9 +119,10 @@ namespace backend_nhom2.Controllers
             var xe = await _db.Xes.FindAsync(id);
             if (xe is null) return NotFound();
 
-            // Giữ lại logic nghiệp vụ quan trọng: không cho xóa nếu xe đang được sử dụng
-            bool inUse = await _db.CtDiemGiaos.AnyAsync(x => x.BS_XE == id);
-            if (inUse) return Conflict("Không thể xóa xe này vì đang được phân công trong một chuyến giao hàng.");
+            // Quan hệ mới: Xe 1-N DonHang
+            // => Không cho xóa nếu có đơn đang gán xe này
+            bool inUse = await _db.DonHangs.AnyAsync(d => d.BS_XE == id);
+            if (inUse) return Conflict("Không thể xóa xe này vì đang được gán cho một hoặc nhiều đơn hàng.");
 
             _db.Xes.Remove(xe);
             await _db.SaveChangesAsync();

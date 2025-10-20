@@ -13,7 +13,10 @@ public class DonHang
     public DateTime NGAYLAP { get; set; }
     public decimal TONGTIEN { get; set; }
 
+    public string? BS_XE { get; set; }
+    public Xe? Xe { get; set; }
 
     public ICollection<CtDonHang> CtDonHangs { get; set; } = new List<CtDonHang>();
     public ICollection<CtDiemGiao> CtDiemGiaos { get; set; } = new List<CtDiemGiao>();
+
 }

@@ -15,5 +15,5 @@ public class Xe
     public User? User { get; set; }
 
     // Nav
-    public ICollection<CtDiemGiao> CtDiemGiaos { get; set; } = new List<CtDiemGiao>();
+    public ICollection<DonHang> DonHangs { get; set; } = new List<DonHang>();
 }
