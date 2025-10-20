@@ -3,17 +3,24 @@
 
 public class CtDiemGiao
 {
-    // PK ghép: IdDD + BS_XE + MADON
-    public string IdDD { get; set; } = string.Empty; // maps to column D_DD
-    public string BS_XE { get; set; } = string.Empty;
-    public string MADON { get; set; } = string.Empty;
-
-
+    // Khóa/thuộc tính hiện có (đặt tên theo dự án của bạn)
+    public string IdDD { get; set; } = default!;  // mã điểm giao
+    public string MADON { get; set; } = default!; // mã đơn hàng
+    public string? BS_XE { get; set; }
     public DateTime? NGAYGIAO { get; set; }
-    public string? TRANGTHAI { get; set; }
+    public string TRANGTHAI { get; set; } = "CHO_GIAO";
 
+    // ====== THÊM RÀNG BUỘC THỜI GIAN & THỜI GIAN PHỤC VỤ ======
+    // epoch seconds; null = không ràng buộc
+    public long? WindowStart { get; set; }
+    public long? WindowEnd { get; set; }
 
-    public DiemGiao? DiemGiao { get; set; }
+    // phút phục vụ tại điểm; null/0 = mặc định 5-10 phút tuỳ bạn
+    public int? ServiceMinutes { get; set; }
+
+    // ====== Navigation (tuỳ dự án có/không) ======
+    public DiemGiao DiemGiao { get; set; } = default!;
+    public DonHang DonHang { get; set; } = default!;
+
     public Xe? Xe { get; set; }
-    public DonHang? DonHang { get; set; }
 }

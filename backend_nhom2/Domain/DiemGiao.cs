@@ -8,6 +8,9 @@ public class DiemGiao
     public string? VITRI { get; set; }
     public string? TEN { get; set; }
 
+    public double? Lat { get; set; }
+    public double? Lng { get; set; }
+
 
     public ICollection<CtDiemGiao> CtDiemGiaos { get; set; } = new List<CtDiemGiao>();
 }

@@ -1,6 +1,8 @@
 using backend_nhom2.Data;
 using backend_nhom2.Domain;
 using backend_nhom2.Models;
+using backend_nhom2.Services.Geo;
+using backend_nhom2.Services.Route;            // <<== THÊM: dịch vụ gọi OSRM + Optimizer dùng HttpClient
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -12,31 +14,29 @@ var builder = WebApplication.CreateBuilder(args);
 
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 
-// Cấu hình CORS
+// ================== CORS ==================
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(name: MyAllowSpecificOrigins,
-                      policy =>
-                      {
-                          policy.WithOrigins("*") // Cho phép mọi nguồn gốc, có thể thay đổi trong môi trường production
-                                .AllowAnyHeader()
-                                .AllowAnyMethod();
-                      });
+    options.AddPolicy(name: MyAllowSpecificOrigins, policy =>
+    {
+        // WithOrigins("*") là không hợp lệ. Dùng AllowAnyOrigin cho dev.
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
 });
 
-// Cấu hình DbContext, thống nhất sử dụng AppDbContext
+// ================== DbContext ==================
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Cấu hình xác thực JWT (Authentication)
+// ================== Authentication (JWT) ==================
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         var jwtKey = builder.Configuration["Jwt:Key"];
         if (string.IsNullOrEmpty(jwtKey))
-        {
-            throw new InvalidOperationException("Khóa JWT (Jwt:Key) chưa được cấu hình trong file appsettings.json");
-        }
+            throw new InvalidOperationException("Khóa JWT (Jwt:Key) chưa được cấu hình trong appsettings.json");
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -50,21 +50,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// Cấu hình phân quyền (Authorization)
+// ================== Authorization ==================
 builder.Services.AddAuthorization();
 
-// Thêm Controllers và cấu hình xử lý tham chiếu vòng tròn (quan trọng!)
+// ================== Controllers + JSON ==================
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
 
 builder.Services.AddEndpointsApiExplorer();
 
-// Lấy cấu hình Swagger hoàn chỉnh nhất, cho phép nhập JWT token
+// ================== Swagger ==================
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Smart Inventory API", Version = "v1" });
-
-    // Thêm định nghĩa bảo mật cho JWT
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "Nhập JWT token theo định dạng: Bearer {token}",
@@ -73,33 +71,32 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
             },
-            new string[] {}
+            Array.Empty<string>()
         }
     });
 });
 
+// ================== Dự án 2 (Thêm) ==================
+// Đăng ký HttpClient cho OsmClients (đọc OSRM BaseUrl từ cấu hình: Osrm:BaseUrl)
+builder.Services.AddHttpClient<OsmClients>();
+builder.Services.AddHttpClient<GeocodingService>();
 var app = builder.Build();
 
-// Tự động áp dụng migration và seed dữ liệu khi ứng dụng khởi động
+// ================== Auto-migrate + seed ==================
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
         var context = services.GetRequiredService<AppDbContext>();
-        context.Database.Migrate(); // Tự động áp dụng migration
+        context.Database.Migrate();
 
         if (!context.Roles.Any())
         {
@@ -118,12 +115,9 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Cấu hình middleware pipeline
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// ================== Middleware pipeline ==================
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.UseCors(MyAllowSpecificOrigins);

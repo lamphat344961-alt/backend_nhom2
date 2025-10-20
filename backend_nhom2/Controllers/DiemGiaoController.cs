@@ -1,22 +1,26 @@
 ﻿using backend_nhom2.Data;
 using backend_nhom2.Domain;
+using backend_nhom2.Services.Geo; // <--- thêm
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace backend_nhom2.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Owner")] // Chỉ Owner được quyền quản lý điểm giao
+    [Authorize(Roles = "Owner")]
     public class DiemGiaoController : ControllerBase
     {
         private readonly AppDbContext _db;
-        public DiemGiaoController(AppDbContext db) => _db = db;
+        private readonly GeocodingService _geo;
 
-        // GET: api/DiemGiao
+        public DiemGiaoController(AppDbContext db, GeocodingService geo)
+        {
+            _db = db;
+            _geo = geo;
+        }
+
         [HttpGet]
         public async Task<ActionResult<IEnumerable<DiemGiao>>> GetAll()
         {
@@ -24,68 +28,67 @@ namespace backend_nhom2.Controllers
             return Ok(diemGiaos);
         }
 
-        // GET: api/DiemGiao/{id}
         [HttpGet("{id}")]
         public async Task<ActionResult<DiemGiao>> GetById(string id)
         {
             var diemGiao = await _db.DiemGiaos.FindAsync(id);
             if (diemGiao is null)
-            {
                 return NotFound($"Không tìm thấy điểm giao với ID: {id}");
-            }
             return Ok(diemGiao);
         }
 
-        // POST: api/DiemGiao
+        // === SỬA PHẦN NÀY ===
         [HttpPost]
-        public async Task<ActionResult<DiemGiao>> Create(DiemGiao diemGiao)
+        public async Task<ActionResult<DiemGiao>> Create([FromBody] DiemGiao diemGiao, CancellationToken ct)
         {
             if (await _db.DiemGiaos.AnyAsync(d => d.IdDD == diemGiao.IdDD))
-            {
                 return Conflict($"Điểm giao với ID '{diemGiao.IdDD}' đã tồn tại.");
+
+            // Nếu chưa có Lat/Lng → tự geocode từ VITRI
+            if ((!diemGiao.Lat.HasValue || !diemGiao.Lng.HasValue) && !string.IsNullOrWhiteSpace(diemGiao.VITRI))
+            {
+                var geo = await _geo.GeocodeAsync(diemGiao.VITRI, ct);
+                if (geo == null)
+                    return BadRequest("Không lấy được toạ độ từ địa chỉ. Vui lòng nhập Lat/Lng thủ công hoặc kiểm tra địa chỉ.");
+
+                diemGiao.Lat = geo.Value.lat;
+                diemGiao.Lng = geo.Value.lng;
             }
 
             _db.DiemGiaos.Add(diemGiao);
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(ct);
 
             return CreatedAtAction(nameof(GetById), new { id = diemGiao.IdDD }, diemGiao);
         }
 
-        // PUT: api/DiemGiao/{id}
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(string id, DiemGiao diemGiao)
         {
             if (id != diemGiao.IdDD)
-            {
-                return BadRequest("ID trong URL và trong body không khớp.");
-            }
+                return BadRequest("ID trong URL và body không khớp.");
 
             var entity = await _db.DiemGiaos.FindAsync(id);
             if (entity is null)
-            {
-                return NotFound($"Không tìm thấy điểm giao để cập nhật với ID: {id}");
-            }
+                return NotFound($"Không tìm thấy điểm giao với ID: {id}");
 
             entity.TEN = diemGiao.TEN;
             entity.VITRI = diemGiao.VITRI;
+            entity.Lat = diemGiao.Lat;
+            entity.Lng = diemGiao.Lng;
 
             await _db.SaveChangesAsync();
             return NoContent();
         }
 
-        // DELETE: api/DiemGiao/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(string id)
         {
             var diemGiao = await _db.DiemGiaos.FindAsync(id);
             if (diemGiao is null)
-            {
-                return NotFound($"Không tìm thấy điểm giao để xóa với ID: {id}");
-            }
+                return NotFound($"Không tìm thấy điểm giao với ID: {id}");
 
             _db.DiemGiaos.Remove(diemGiao);
             await _db.SaveChangesAsync();
-
             return NoContent();
         }
     }
