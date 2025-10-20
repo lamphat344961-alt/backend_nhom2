@@ -4,6 +4,8 @@ using backend_nhom2.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace backend_nhom2.Controllers
 {
@@ -19,7 +21,32 @@ namespace backend_nhom2.Controllers
             _context = context;
         }
 
+        // --- HÀM MỚI ---
+        // Dùng để lấy về tất cả người dùng có vai trò là "Driver"
+        // GET: api/User/drivers
+        [HttpGet("drivers")]
+        public async Task<IActionResult> GetDrivers()
+        {
+            var drivers = await _context.Users
+                .Include(u => u.Role)
+                .Where(u => u.Role.RoleName == "Driver")
+                .Select(u => new
+                {
+                    u.UserId,
+                    u.Username,
+                    u.FullName,
+                    u.PhoneNumber,
+                    u.CCCD
+                })
+                .AsNoTracking()
+                .ToListAsync();
+
+            return Ok(drivers);
+        }
+
+        // --- HÀM CŨ ---
         // Owner tạo tài khoản cho tài xế mới
+        // POST: api/User/create-driver
         [HttpPost("create-driver")]
         public async Task<IActionResult> CreateDriver(RegisterRequestDto request)
         {
@@ -50,7 +77,7 @@ namespace backend_nhom2.Controllers
                 PhoneNumber = request.PhoneNumber,
                 CCCD = request.CCCD,
                 RoleId = driverRole.RoleId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = System.DateTime.UtcNow
             };
 
             _context.Users.Add(user);
@@ -60,6 +87,7 @@ namespace backend_nhom2.Controllers
         }
 
         // Owner gán một tài xế vào một xe
+        // PUT: api/User/assign-driver-to-vehicle?driverId=...&vehiclePlate=...
         [HttpPut("assign-driver-to-vehicle")]
         public async Task<IActionResult> AssignDriverToVehicle([FromQuery] int driverId, [FromQuery] string vehiclePlate)
         {
