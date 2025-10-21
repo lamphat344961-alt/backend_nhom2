@@ -2,13 +2,16 @@ using backend_nhom2.Data;
 using backend_nhom2.Domain;
 using backend_nhom2.Models;
 using backend_nhom2.Services.Geo;
-using backend_nhom2.Services.Route;            // <<== THÊM: dịch vụ gọi OSRM + Optimizer dùng HttpClient
+using backend_nhom2.Services.Route;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.IdentityModel.Tokens.Jwt;
+
+JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,7 +22,6 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: MyAllowSpecificOrigins, policy =>
     {
-        // WithOrigins("*") là không hợp lệ. Dùng AllowAnyOrigin cho dev.
         policy.AllowAnyOrigin()
               .AllowAnyHeader()
               .AllowAnyMethod();
@@ -83,8 +85,7 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// ================== Dự án 2 (Thêm) ==================
-// Đăng ký HttpClient cho OsmClients (đọc OSRM BaseUrl từ cấu hình: Osrm:BaseUrl)
+// ================== Các dịch vụ khác ==================
 builder.Services.AddHttpClient<OsmClients>();
 builder.Services.AddHttpClient<GeocodingService>();
 var app = builder.Build();
@@ -116,14 +117,20 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ================== Middleware pipeline ==================
-app.UseSwagger();
-app.UseSwaggerUI();
+// Cấu hình pipeline cho HTTP request
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
-//app.UseHttpsRedirection();
+app.UseHttpsRedirection();
+
+
 app.UseCors(MyAllowSpecificOrigins);
 
-app.UseAuthentication();
-app.UseAuthorization();
+app.UseAuthentication(); // Phải đứng trước UseAuthorization
+app.UseAuthorization(); // Phải đứng trước MapControllers
 
 app.MapControllers();
 

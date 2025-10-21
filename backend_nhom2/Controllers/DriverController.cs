@@ -23,8 +23,11 @@ namespace backend_nhom2.Controllers
         [HttpGet("my-deliveries")]
         public async Task<IActionResult> GetMyDeliveries()
         {
-            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(userIdStr, out var userId))
+            var userIdStr = User.FindAll(ClaimTypes.NameIdentifier)
+                                .FirstOrDefault(c => int.TryParse(c.Value, out _))
+                                ?.Value;
+
+            if (userIdStr == null || !int.TryParse(userIdStr, out var userId))
             {
                 return Unauthorized("Token không hợp lệ hoặc không chứa User ID.");
             }
