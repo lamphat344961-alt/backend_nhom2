@@ -4,6 +4,7 @@ using backend_nhom2.DTOs.DonHang;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace backend_nhom2.Controllers;
 
@@ -25,9 +26,7 @@ public class DonHangController : ControllerBase
         [FromQuery] string? maloai = null,
         [FromQuery] string? q = null)
     {
-        var query = _db.DonHangs
-            .Include(d => d.DiemGiao)
-            .AsNoTracking();
+        var query = _db.DonHangs.Include(d => d.DiemGiao).AsNoTracking();
 
         if (from.HasValue) query = query.Where(d => d.NGAYLAP >= from.Value);
         if (to.HasValue) query = query.Where(d => d.NGAYLAP < to.Value.AddDays(1));
@@ -40,7 +39,7 @@ public class DonHangController : ControllerBase
             .Take(pageSize)
             .Select(d => new DonHangReadDto(
                 d.MADON, d.MALOAI, d.NGAYLAP, d.TONGTIEN,
-                d.TRANGTHAI, d.D_DD,
+                d.TRANGTHAI, d.D_DD, d.BS_XE,
                 d.DiemGiao != null ? d.DiemGiao.TEN : null,
                 d.DiemGiao != null ? d.DiemGiao.VITRI : null,
                 d.DiemGiao != null ? d.DiemGiao.Lat : null,
@@ -65,7 +64,7 @@ public class DonHangController : ControllerBase
 
         var dto = new DonHangReadDto(
             don.MADON, don.MALOAI, don.NGAYLAP, don.TONGTIEN,
-            don.TRANGTHAI, don.D_DD,
+            don.TRANGTHAI, don.D_DD, don.BS_XE,
             don.DiemGiao?.TEN, don.DiemGiao?.VITRI, don.DiemGiao?.Lat, don.DiemGiao?.Lng
         );
 
@@ -86,12 +85,27 @@ public class DonHangController : ControllerBase
             !await _db.LoaiHangs.AnyAsync(l => l.MALOAI == dto.MALOAI))
             return BadRequest($"MALOAI '{dto.MALOAI}' không tồn tại.");
 
+        // 👇 Lấy UserId từ token (nếu có)
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        int.TryParse(userIdStr, out var userId);
+
+        // Nếu không nhập BS_XE thì auto gán
+        string? bsXe = dto.BS_XE;
+        if (string.IsNullOrEmpty(bsXe) && userId > 0)
+        {
+            bsXe = await _db.Xes
+                .Where(x => x.UserId == userId)
+                .Select(x => x.BS_XE)
+                .FirstOrDefaultAsync();
+        }
+
         var entity = new DonHang
         {
             MADON = dto.MADON,
             MALOAI = dto.MALOAI,
             NGAYLAP = dto.NGAYLAP,
             TONGTIEN = dto.TONGTIEN,
+            BS_XE = bsXe,
             D_DD = dto.D_DD,
             TRANGTHAI = dto.TRANGTHAI ?? "CHO_GIAO",
             WindowStart = dto.WindowStart,
@@ -104,7 +118,7 @@ public class DonHangController : ControllerBase
 
         var read = new DonHangReadDto(
             entity.MADON, entity.MALOAI, entity.NGAYLAP, entity.TONGTIEN,
-            entity.TRANGTHAI, entity.D_DD,
+            entity.TRANGTHAI, entity.D_DD, entity.BS_XE,
             entity.DiemGiao?.TEN, entity.DiemGiao?.VITRI, entity.DiemGiao?.Lat, entity.DiemGiao?.Lng
         );
 
@@ -121,6 +135,7 @@ public class DonHangController : ControllerBase
         don.MALOAI = dto.MALOAI;
         don.NGAYLAP = dto.NGAYLAP;
         don.D_DD = dto.D_DD;
+        don.BS_XE = dto.BS_XE ?? don.BS_XE; // 👈 cho phép đổi xe
         don.WindowStart = dto.WindowStart;
         don.WindowEnd = dto.WindowEnd;
         don.ServiceMinutes = dto.ServiceMinutes;

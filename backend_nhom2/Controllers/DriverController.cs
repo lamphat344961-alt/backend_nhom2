@@ -1,104 +1,99 @@
-﻿using backend_nhom2.Data;
+﻿using System.Security.Claims;
+using backend_nhom2.Data;
+using backend_nhom2.DTOs.DonHang;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
-using System.Security.Claims;
-using System.Threading.Tasks;
 
-namespace backend_nhom2.Controllers
+namespace backend_nhom2.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+[Authorize(Roles = "Driver")]
+public class DriverController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    [Authorize(Roles = "Driver")]
-    public class DriverController : ControllerBase
+    private readonly AppDbContext _db;
+    public DriverController(AppDbContext db) => _db = db;
+
+    // GET: /api/Driver/my-deliveries
+    [HttpGet("my-deliveries")]
+    public async Task<ActionResult<IEnumerable<DonHangReadDto>>> MyDeliveries()
     {
-        private readonly AppDbContext _db;
+        var userId = GetCurrentUserId();
+        if (userId == null) return Unauthorized("Không xác định được tài xế đang đăng nhập.");
 
-        public DriverController(AppDbContext db)
-        {
-            _db = db;
-        }
+        // Tìm xe gán cho tài xế hiện tại (AppDbContext có unique index Xe.UserId)
+        var myPlate = await _db.Xes
+            .Where(x => x.UserId == userId)
+            .Select(x => x.BS_XE)
+            .FirstOrDefaultAsync();
 
-        /// <summary>
-        /// Lấy danh sách đơn hàng được gán cho tài xế hiện tại (dựa trên xe).
-        /// </summary>
-        [HttpGet("my-deliveries")]
-        public async Task<IActionResult> GetMyDeliveries()
-        {
-            // Lấy UserId từ JWT
-            var userIdStr = User.FindAll(ClaimTypes.NameIdentifier)
-                                .FirstOrDefault(c => int.TryParse(c.Value, out _))
-                                ?.Value;
+        if (string.IsNullOrEmpty(myPlate))
+            return Ok(Enumerable.Empty<DonHangReadDto>()); // tài xế chưa được gán xe → chưa có đơn
 
-            if (userIdStr == null || !int.TryParse(userIdStr, out var userId))
-                return Unauthorized("Token không hợp lệ hoặc không chứa User ID.");
+        // Lọc đơn theo BS_XE của xe tài xế
+        var query = _db.DonHangs
+            .Include(d => d.DiemGiao)
+            .AsNoTracking()
+            .Where(d => d.BS_XE == myPlate);
 
-            // Lấy danh sách xe của tài xế
-            var myPlates = await _db.Xes
-                .Where(x => x.UserId == userId)
-                .Select(x => x.BS_XE)
-                .ToListAsync();
+        // Nếu muốn ẩn đơn đã hoàn thành thì thêm điều kiện:
+        // query = query.Where(d => d.TRANGTHAI != "HOANTHANH");
 
-            if (myPlates.Count == 0)
-                return Ok("Bạn chưa được gán xe nào.");
+        var data = await query
+            .OrderBy(d => d.NGAYLAP)
+            .Select(d => new DonHangReadDto(
+                d.MADON,
+                d.MALOAI,
+                d.NGAYLAP,
+                d.TONGTIEN,
+                d.TRANGTHAI,
+                d.D_DD,
+                d.BS_XE,                                  // 👈 map BS_XE
+                d.DiemGiao != null ? d.DiemGiao.TEN : null,
+                d.DiemGiao != null ? d.DiemGiao.VITRI : null,
+                d.DiemGiao != null ? d.DiemGiao.Lat : null,
+                d.DiemGiao != null ? d.DiemGiao.Lng : null
+            ))
+            .ToListAsync();
 
-            // Lấy các đơn hàng của các xe đó, chưa hoàn thành
-            var deliveries = await _db.DonHangs
-                .Include(d => d.DiemGiao)
-                .Where(d =>
-                    d.TRANGTHAI != "HOANTHANH" &&
-                    d.BS_XE != null &&
-                    myPlates.Contains(d.BS_XE))
-                .Select(d => new
-                {
-                    MaDonHang = d.MADON,
-                    BienSoXe = d.BS_XE,
-                    TenDiemGiao = d.DiemGiao != null ? d.DiemGiao.TEN : null,
-                    DiaChiGiao = d.DiemGiao != null ? d.DiemGiao.VITRI : null,
-                    Lat = d.DiemGiao != null ? d.DiemGiao.Lat : null,
-                    Lng = d.DiemGiao != null ? d.DiemGiao.Lng : null,
-                    TrangThai = d.TRANGTHAI,
-                    NgayGiaoDuKien = d.NGAYGIAO
-                })
-                .AsNoTracking()
-                .ToListAsync();
+        return Ok(data);
+    }
 
-            if (deliveries.Count == 0)
-                return Ok("Không có đơn giao hàng nào đang chờ giao.");
+    // POST: /api/Driver/complete/{maDon}
+    [HttpPost("complete/{maDon}")]
+    public async Task<IActionResult> Complete(string maDon)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null) return Unauthorized();
 
-            return Ok(deliveries);
-        }
+        // Xác định xe của tài xế
+        var myPlate = await _db.Xes
+            .Where(x => x.UserId == userId)
+            .Select(x => x.BS_XE)
+            .FirstOrDefaultAsync();
 
-        /// <summary>
-        /// Tài xế đánh dấu hoàn thành 1 đơn hàng.
-        /// </summary>
-        [HttpPost("complete/{maDon}")]
-        public async Task<IActionResult> CompleteOrder(string maDon)
-        {
-            var userIdStr = User.FindAll(ClaimTypes.NameIdentifier)
-                                .FirstOrDefault(c => int.TryParse(c.Value, out _))
-                                ?.Value;
+        if (string.IsNullOrEmpty(myPlate))
+            return BadRequest("Bạn chưa được gán xe, không thể hoàn thành đơn.");
 
-            if (userIdStr == null || !int.TryParse(userIdStr, out var userId))
-                return Unauthorized("Token không hợp lệ hoặc không chứa User ID.");
+        // Chỉ cho phép hoàn thành đơn thuộc xe của chính mình
+        var don = await _db.DonHangs.FirstOrDefaultAsync(d => d.MADON == maDon && d.BS_XE == myPlate);
+        if (don == null) return NotFound($"Không tìm thấy đơn {maDon} của tài xế hiện tại.");
 
-            var order = await _db.DonHangs
-                .Include(d => d.Xe)
-                .FirstOrDefaultAsync(d => d.MADON == maDon);
+        don.TRANGTHAI = "HOANTHANH";
+        don.NGAYGIAO = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
 
-            if (order == null)
-                return NotFound("Không tìm thấy đơn hàng.");
+        return Ok($"Đơn {maDon} đã hoàn thành.");
+    }
 
-            // Kiểm tra tài xế có quyền
-            if (order.Xe == null || order.Xe.UserId != userId)
-                return Forbid("Bạn không có quyền hoàn thành đơn này.");
-
-            order.TRANGTHAI = "HOANTHANH";
-            order.NGAYGIAO = DateTime.UtcNow;
-
-            await _db.SaveChangesAsync();
-            return Ok("Đã cập nhật trạng thái hoàn thành đơn hàng.");
-        }
+    // Helper: lấy userId từ JWT
+    private int? GetCurrentUserId()
+    {
+        var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (int.TryParse(idStr, out var id)) return id;
+        return null;
+        // Nếu dự án của bạn lưu claim kiểu khác (vd "sub"), có thể bổ sung:
+        // var sub = User.FindFirstValue("sub"); ...
     }
 }

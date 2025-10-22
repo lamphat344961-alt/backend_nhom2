@@ -7,6 +7,7 @@ public record DonHangReadDto(
     decimal TONGTIEN,
     string? TRANGTHAI,
     string? D_DD,
+     string? BS_XE,
     string? TenDiemGiao,
     string? ViTri,
     double? Lat,

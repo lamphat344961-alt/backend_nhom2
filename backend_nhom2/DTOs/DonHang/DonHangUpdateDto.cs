@@ -6,6 +6,7 @@ public record DonHangUpdateDto(
     string? D_DD,
     long? WindowStart = null,
     long? WindowEnd = null,
+    string? BS_XE,
     int? ServiceMinutes = 10,
     string? TRANGTHAI = "CHO_GIAO"
 );

@@ -5,6 +5,7 @@ public record DonHangCreateDto(
     string? MALOAI,
     DateTime NGAYLAP,
     decimal TONGTIEN,
+    string? BS_XE,
     string? D_DD,              // NEW: gán điểm giao
     long? WindowStart = null,
     long? WindowEnd = null,
