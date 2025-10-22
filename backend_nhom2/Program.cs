@@ -17,6 +17,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 
+//builder.WebHost.ConfigureKestrel(serverOptions =>
+//{
+//    serverOptions.ListenAnyIP(7197); // HTTP
+//});
+
 // ================== CORS ==================
 builder.Services.AddCors(options =>
 {

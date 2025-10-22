@@ -4,109 +4,160 @@ using backend_nhom2.DTOs.DonHang;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
-namespace backend_nhom2.Controllers
+namespace backend_nhom2.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+[Authorize(Roles = "Owner,Driver")]
+public class DonHangController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    [Authorize(Roles = "Owner")]
-    public class DonHangController : ControllerBase
+    private readonly AppDbContext _db;
+    public DonHangController(AppDbContext db) => _db = db;
+
+    // GET api/DonHang
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<DonHangReadDto>>> GetAll(
+        [FromQuery] int pageIndex = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null,
+        [FromQuery] string? maloai = null,
+        [FromQuery] string? q = null)
     {
-        private readonly AppDbContext _db;
-        public DonHangController(AppDbContext db) => _db = db;
+        var query = _db.DonHangs
+            .Include(d => d.DiemGiao)
+            .AsNoTracking();
 
-        // GET: api/DonHang - Lấy danh sách đơn hàng (không kèm chi tiết)
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<DonHangReadDto>>> GetAll(
-            [FromQuery] int pageIndex = 1, [FromQuery] int pageSize = 20, [FromQuery] DateTime? from = null,
-            [FromQuery] DateTime? to = null, [FromQuery] string? maloai = null, [FromQuery] string? q = null)
+        if (from.HasValue) query = query.Where(d => d.NGAYLAP >= from.Value);
+        if (to.HasValue) query = query.Where(d => d.NGAYLAP < to.Value.AddDays(1));
+        if (!string.IsNullOrWhiteSpace(maloai)) query = query.Where(d => d.MALOAI == maloai);
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(d => d.MADON.Contains(q));
+
+        var data = await query
+            .OrderByDescending(d => d.NGAYLAP)
+            .Skip((pageIndex - 1) * pageSize)
+            .Take(pageSize)
+            .Select(d => new DonHangReadDto(
+                d.MADON, d.MALOAI, d.NGAYLAP, d.TONGTIEN,
+                d.TRANGTHAI, d.D_DD,
+                d.DiemGiao != null ? d.DiemGiao.TEN : null,
+                d.DiemGiao != null ? d.DiemGiao.VITRI : null,
+                d.DiemGiao != null ? d.DiemGiao.Lat : null,
+                d.DiemGiao != null ? d.DiemGiao.Lng : null
+            ))
+            .ToListAsync();
+
+        return Ok(data);
+    }
+
+    // GET api/DonHang/{id}
+    [HttpGet("{id}")]
+    public async Task<ActionResult<DonHangReadDto>> GetById(string id)
+    {
+        var don = await _db.DonHangs
+            .Include(d => d.DiemGiao)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.MADON == id);
+
+        if (don == null)
+            return NotFound($"Không tìm thấy đơn hàng với mã: {id}");
+
+        var dto = new DonHangReadDto(
+            don.MADON, don.MALOAI, don.NGAYLAP, don.TONGTIEN,
+            don.TRANGTHAI, don.D_DD,
+            don.DiemGiao?.TEN, don.DiemGiao?.VITRI, don.DiemGiao?.Lat, don.DiemGiao?.Lng
+        );
+
+        return Ok(dto);
+    }
+
+    // POST api/DonHang
+    [HttpPost]
+    public async Task<ActionResult<DonHangReadDto>> Create(DonHangCreateDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.MADON))
+            return BadRequest("MADON là bắt buộc.");
+
+        if (await _db.DonHangs.AnyAsync(d => d.MADON == dto.MADON))
+            return Conflict($"Mã đơn hàng '{dto.MADON}' đã tồn tại.");
+
+        if (!string.IsNullOrWhiteSpace(dto.MALOAI) &&
+            !await _db.LoaiHangs.AnyAsync(l => l.MALOAI == dto.MALOAI))
+            return BadRequest($"MALOAI '{dto.MALOAI}' không tồn tại.");
+
+        var entity = new DonHang
         {
-            if (pageIndex < 1) pageIndex = 1;
-            if (pageSize < 1) pageSize = 20;
+            MADON = dto.MADON,
+            MALOAI = dto.MALOAI,
+            NGAYLAP = dto.NGAYLAP,
+            TONGTIEN = dto.TONGTIEN,
+            D_DD = dto.D_DD,
+            TRANGTHAI = dto.TRANGTHAI ?? "CHO_GIAO",
+            WindowStart = dto.WindowStart,
+            WindowEnd = dto.WindowEnd,
+            ServiceMinutes = dto.ServiceMinutes
+        };
 
-            var query = _db.DonHangs.AsNoTracking();
+        _db.DonHangs.Add(entity);
+        await _db.SaveChangesAsync();
 
-            if (from.HasValue) query = query.Where(d => d.NGAYLAP >= from.Value);
-            if (to.HasValue) query = query.Where(d => d.NGAYLAP < to.Value.AddDays(1));
-            if (!string.IsNullOrWhiteSpace(maloai)) query = query.Where(d => d.MALOAI == maloai);
-            if (!string.IsNullOrWhiteSpace(q)) query = query.Where(d => d.MADON.Contains(q));
+        var read = new DonHangReadDto(
+            entity.MADON, entity.MALOAI, entity.NGAYLAP, entity.TONGTIEN,
+            entity.TRANGTHAI, entity.D_DD,
+            entity.DiemGiao?.TEN, entity.DiemGiao?.VITRI, entity.DiemGiao?.Lat, entity.DiemGiao?.Lng
+        );
 
-            var data = await query.OrderByDescending(d => d.NGAYLAP).Skip((pageIndex - 1) * pageSize).Take(pageSize)
+        return CreatedAtAction(nameof(GetById), new { id = entity.MADON }, read);
+    }
 
-                .Select(d => new DonHangReadDto(d.MADON, d.MALOAI, d.NGAYLAP, d.TONGTIEN))
-                .ToListAsync();
+    // PUT api/DonHang/{id}
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(string id, DonHangUpdateDto dto)
+    {
+        var don = await _db.DonHangs.FindAsync(id);
+        if (don == null) return NotFound($"Không tìm thấy đơn hàng: {id}");
 
-            return Ok(data);
-        }
+        don.MALOAI = dto.MALOAI;
+        don.NGAYLAP = dto.NGAYLAP;
+        don.D_DD = dto.D_DD;
+        don.WindowStart = dto.WindowStart;
+        don.WindowEnd = dto.WindowEnd;
+        don.ServiceMinutes = dto.ServiceMinutes;
+        don.TRANGTHAI = dto.TRANGTHAI ?? don.TRANGTHAI;
 
-        // GET: api/DonHang/{id} - Lấy thông tin một đơn hàng (không kèm chi tiết)
-        [HttpGet("{id}")]
-        public async Task<ActionResult<DonHangReadDto>> GetById(string id)
-        {
-            var don = await _db.DonHangs.AsNoTracking().FirstOrDefaultAsync(x => x.MADON == id);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
 
-            if (don is null) return NotFound($"Không tìm thấy đơn hàng với mã: {id}");
+    // POST api/DonHang/{id}/complete
+    [HttpPost("{id}/complete")]
+    [Authorize(Roles = "Driver,Owner")]
+    public async Task<IActionResult> CompleteOrder(string id)
+    {
+        var don = await _db.DonHangs.FirstOrDefaultAsync(d => d.MADON == id);
+        if (don == null) return NotFound($"Không tìm thấy đơn hàng {id}");
 
-            // Trả về DTO đơn giản, không có Items
-            var dto = new DonHangReadDto(don.MADON, don.MALOAI, don.NGAYLAP, don.TONGTIEN);
-            return Ok(dto);
-        }
+        don.TRANGTHAI = "HOANTHANH";
+        don.NGAYGIAO = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
 
-        // POST: api/DonHang - Chỉ tạo thông tin chung của đơn hàng
-        [HttpPost]
-        public async Task<ActionResult<DonHangReadDto>> Create(DonHangCreateDto dto)
-        {
-            if (string.IsNullOrWhiteSpace(dto.MADON)) return BadRequest("MADON là bắt buộc.");
-            if (await _db.DonHangs.AnyAsync(d => d.MADON == dto.MADON)) return Conflict($"Mã đơn hàng '{dto.MADON}' đã tồn tại.");
-            if (!string.IsNullOrWhiteSpace(dto.MALOAI) && !await _db.LoaiHangs.AnyAsync(l => l.MALOAI == dto.MALOAI)) return BadRequest($"MALOAI '{dto.MALOAI}' không tồn tại.");
+        return Ok($"Đơn hàng {id} đã hoàn thành.");
+    }
 
-            var entity = new DonHang
-            {
-                MADON = dto.MADON,
-                MALOAI = dto.MALOAI,
-                NGAYLAP = dto.NGAYLAP,
+    // DELETE api/DonHang/{id}
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id)
+    {
+        var don = await _db.DonHangs
+            .Include(d => d.CtDonHangs)
+            .FirstOrDefaultAsync(d => d.MADON == id);
 
-                // Nó sẽ được cập nhật bởi CtDonHangController.
-                TONGTIEN = 0
-            };
+        if (don == null)
+            return NotFound($"Không tìm thấy đơn hàng {id}");
 
-            _db.DonHangs.Add(entity);
-            await _db.SaveChangesAsync();
-
-            var readDto = new DonHangReadDto(entity.MADON, entity.MALOAI, entity.NGAYLAP, entity.TONGTIEN);
-            return CreatedAtAction(nameof(GetById), new { id = entity.MADON }, readDto);
-        }
-
-        // PUT: api/DonHang/{id} - Cập nhật thông tin chung của đơn hàng
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(string id, DonHangUpdateDto dto)
-        {
-            var donHang = await _db.DonHangs.FindAsync(id);
-            if (donHang is null) return NotFound($"Không tìm thấy đơn hàng với mã: {id}");
-
-            donHang.MALOAI = dto.MALOAI;
-            donHang.NGAYLAP = dto.NGAYLAP;
-
-            await _db.SaveChangesAsync();
-            return NoContent();
-        }
-
-        // DELETE: api/DonHang/{id} - Xóa đơn hàng và tất cả chi tiết liên quan
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(string id)
-        {
-            // Dùng Include để EF Core biết cần xóa cả các chi tiết đơn hàng con
-            var donHang = await _db.DonHangs.Include(d => d.CtDonHangs).FirstOrDefaultAsync(d => d.MADON == id);
-            if (donHang is null) return NotFound($"Không tìm thấy đơn hàng với mã: {id}");
-
-            // Khi xóa DonHang, các CtDonHang liên quan cũng sẽ bị xóa
-            _db.DonHangs.Remove(donHang);
-            await _db.SaveChangesAsync();
-            return NoContent();
-        }
+        _db.DonHangs.Remove(don);
+        await _db.SaveChangesAsync();
+        return NoContent();
     }
 }

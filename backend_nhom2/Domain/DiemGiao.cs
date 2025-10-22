@@ -12,5 +12,5 @@ public class DiemGiao
     public double? Lng { get; set; }
 
 
-    public ICollection<CtDiemGiao> CtDiemGiaos { get; set; } = new List<CtDiemGiao>();
+    public ICollection<DonHang> DonHangs { get; set; } = new List<DonHang>();
 }

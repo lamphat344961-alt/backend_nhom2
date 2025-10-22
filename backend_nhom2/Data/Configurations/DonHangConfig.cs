@@ -24,9 +24,5 @@ public class DonHangConfig : IEntityTypeConfiguration<DonHang>
         .OnDelete(DeleteBehavior.Cascade);
 
 
-        builder.HasMany(d => d.CtDiemGiaos)
-        .WithOne(cg => cg.DonHang!)
-        .HasForeignKey(cg => cg.MADON)
-        .OnDelete(DeleteBehavior.Cascade);
     }
 }

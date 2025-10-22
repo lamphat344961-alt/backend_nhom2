@@ -18,7 +18,6 @@ namespace backend_nhom2.Data
         public DbSet<LoaiHang> LoaiHangs => Set<LoaiHang>();
         public DbSet<HangHoa> HangHoas => Set<HangHoa>();
         public DbSet<CtDonHang> CtDonHangs => Set<CtDonHang>();
-        public DbSet<CtDiemGiao> CtDiemGiaos => Set<CtDiemGiao>();
 
         // ====== Các bảng tối ưu lộ trình ======
         public DbSet<RoutePlan> RoutePlans => Set<RoutePlan>();
@@ -54,27 +53,7 @@ namespace backend_nhom2.Data
                 e.HasIndex(x => new { x.RoutePlanId, x.Order }).IsUnique();
             });
 
-            modelBuilder.Entity<CtDiemGiao>(e =>
-            {
-                e.ToTable("CT_DIEMGIAO");
-                // PK phức hợp: MADON + D_DD
-                e.HasKey(x => new { x.MADON, x.IdDD });
-
-                e.Property(x => x.MADON).HasMaxLength(20);
-                e.Property(x => x.IdDD).HasColumnName("D_DD").HasMaxLength(20);
-                e.Property(x => x.TRANGTHAI).HasMaxLength(30).IsRequired();
-                e.Property(x => x.ServiceMinutes).HasDefaultValue(10);
-
-                e.HasOne(x => x.DonHang)
-                    .WithMany(d => d.CtDiemGiaos)
-                    .HasForeignKey(x => x.MADON)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                e.HasOne(x => x.DiemGiao)
-                    .WithMany(d => d.CtDiemGiaos)
-                    .HasForeignKey(x => x.IdDD)
-                    .OnDelete(DeleteBehavior.Restrict);
-            });
+           
             modelBuilder.Entity<Xe>(e =>
             {
                 e.ToTable("XE");
@@ -99,6 +78,13 @@ namespace backend_nhom2.Data
                     .WithMany(v => v.DonHangs)
                     .HasForeignKey(x => x.BS_XE)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                e.Property(x => x.D_DD).HasMaxLength(20);
+                e.HasIndex(x => x.D_DD);
+                e.HasOne(x => x.DiemGiao)
+                    .WithMany(g => g.DonHangs)
+                    .HasForeignKey(x => x.D_DD)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
             // ===== DIEMGIAO =====
             modelBuilder.Entity<DiemGiao>(e =>

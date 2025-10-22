@@ -17,9 +17,5 @@ public class DiemGiaoConfig : IEntityTypeConfiguration<DiemGiao>
         builder.Property(x => x.TEN).HasMaxLength(100);
 
 
-        builder.HasMany(x => x.CtDiemGiaos)
-        .WithOne(cd => cd.DiemGiao!)
-        .HasForeignKey(cd => cd.IdDD)
-        .OnDelete(DeleteBehavior.Restrict);
     }
 }
