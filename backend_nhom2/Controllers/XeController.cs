@@ -106,10 +106,23 @@ namespace backend_nhom2.Controllers
             if (driver is null) return BadRequest($"Không tìm thấy tài xế với ID: {dto.UserId}");
             if (driver.Role?.RoleName != "Driver") return BadRequest($"Người dùng có ID {dto.UserId} không phải là tài xế.");
 
+            // 1. Tìm xe cũ mà tài xế này đang lái
+            var existingAssignment = await _db.Xes
+                .FirstOrDefaultAsync(x => x.UserId == dto.UserId && x.BS_XE != bsxe);
+
+            // 2. Nếu tài xế đang lái xe cũ, gỡ họ ra
+            if (existingAssignment != null)
+            {
+                existingAssignment.UserId = null; // Gỡ tài xế khỏi xe cũ
+            }
+
+            // 3. Gán tài xế vào xe mới (xe hiện tại)
             xe.UserId = dto.UserId;
+
+            // 4. Lưu cả hai thay đổi
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = $"Đã gán tài xế '{driver.FullName}' cho xe '{bsxe}' thành công." });
+            return Ok(new { message = $"Đã gán tài xế '{driver.FullName}' cho xe '{xe.BS_XE}' thành công." });
         }
 
         // DELETE: api/Xe/{id}
