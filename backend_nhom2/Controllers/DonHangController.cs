@@ -135,7 +135,6 @@ public class DonHangController : ControllerBase
         don.MALOAI = dto.MALOAI;
         don.NGAYLAP = dto.NGAYLAP;
         don.D_DD = dto.D_DD;
-        don.BS_XE = dto.BS_XE ?? don.BS_XE; // 👈 cho phép đổi xe
         don.WindowStart = dto.WindowStart;
         don.WindowEnd = dto.WindowEnd;
         don.ServiceMinutes = dto.ServiceMinutes;
